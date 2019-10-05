@@ -3,6 +3,7 @@ using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Drawing.Imaging;
 using System.IO;
+using System.Threading.Tasks;
 
 namespace ImageResizer
 {
@@ -35,10 +36,10 @@ namespace ImageResizer
         /// <param name="sourcePath">圖片來源目錄路徑</param>
         /// <param name="destPath">產生圖片目的目錄路徑</param>
         /// <param name="scale">縮放比例</param>
-        public void ResizeImages(string sourcePath, string destPath, double scale)
+        public async Task ResizeImagesAsync(string sourcePath, string destPath, double scale)
         {
-            var allFiles = FindImages(sourcePath);
-            foreach (var filePath in allFiles)
+            var allFiles = await FindImageAsync(sourcePath);
+            Parallel.ForEach(allFiles, filePath =>
             {
                 Image imgPhoto = Image.FromFile(filePath);
                 string imgName = Path.GetFileNameWithoutExtension(filePath);
@@ -55,21 +56,7 @@ namespace ImageResizer
 
                 string destFile = Path.Combine(destPath, imgName + ".jpg");
                 processedImage.Save(destFile, ImageFormat.Jpeg);
-            }
-        }
-
-        /// <summary>
-        /// 找出指定目錄下的圖片
-        /// </summary>
-        /// <param name="srcPath">圖片來源目錄路徑</param>
-        /// <returns></returns>
-        public List<string> FindImages(string srcPath)
-        {
-            List<string> files = new List<string>();
-            files.AddRange(Directory.GetFiles(srcPath, "*.png", SearchOption.AllDirectories));
-            files.AddRange(Directory.GetFiles(srcPath, "*.jpg", SearchOption.AllDirectories));
-            files.AddRange(Directory.GetFiles(srcPath, "*.jpeg", SearchOption.AllDirectories));
-            return files;
+            });
         }
 
         /// <summary>
@@ -94,5 +81,49 @@ namespace ImageResizer
                 GraphicsUnit.Pixel);
             return resizedbitmap;
         }
+
+        #region 非同步方法
+
+        /// <summary>
+        /// 找出指定目錄下的圖片
+        /// </summary>
+        /// <param name="srcPath">圖片來源目錄路徑</param>
+        /// <returns></returns>
+        public async Task<List<string>> FindImageAsync(string srcPath)
+        {
+            var result = new List<string>();
+            var taskArray = new Task[3];
+            taskArray[0] = Task.Run(() =>
+            {
+                lock (result)
+                {
+                    result.AddRange(Directory.GetFiles(srcPath, "*.png", SearchOption.AllDirectories));
+                }
+            });
+
+            taskArray[1] = Task.Run(() =>
+            {
+                lock (result)
+                {
+                    result.AddRange(Directory.GetFiles(srcPath, "*.jpg", SearchOption.AllDirectories));
+                }
+            });
+
+            taskArray[2] = Task.Run(() =>
+            {
+                lock (result)
+                {
+                    result.AddRange(Directory.GetFiles(srcPath, "*.jpeg", SearchOption.AllDirectories));
+                }
+            });
+
+            await Task.WhenAll(taskArray);
+            return result;
+
+        }
+
+
+        #endregion
+
     }
 }
