@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Drawing.Imaging;
@@ -32,9 +33,9 @@ namespace ImageResizer
         /// <param name="sourcePath">圖片來源目錄路徑</param>
         /// <param name="destPath">產生圖片目的目錄路徑</param>
         /// <param name="scale">縮放比例</param>
-        public async Task ResizeImagesAsync(string sourcePath, string destPath, double scale)
+        public void ResizeImages(string sourcePath, string destPath, double scale)
         {
-            var allFiles = await FindImageAsync(sourcePath);
+            var allFiles = FindImage(sourcePath);
             Parallel.ForEach(allFiles, filePath =>
             {
                 Image imgPhoto = Image.FromFile(filePath);
@@ -80,45 +81,19 @@ namespace ImageResizer
 
         #region 非同步方法
 
-        /// <summary>
-        /// 找出指定目錄下的圖片
-        /// </summary>
-        /// <param name="srcPath">圖片來源目錄路徑</param>
-        /// <returns></returns>
-        public async Task<List<string>> FindImageAsync(string srcPath)
+        public string[] FindImage(string srcPath)
         {
-            var result = new List<string>();
-            var taskArray = new Task[3];
-            taskArray[0] = Task.Run(() =>
-            {
-                lock (result)
-                {
-                    result.AddRange(Directory.GetFiles(srcPath, "*.png", SearchOption.AllDirectories));
-                }
-            });
+            var result = new BlockingCollection<string>();
+            var imageType= new string[]{ "*.png", "*.jpg" , "*.jpeg" };
 
-            taskArray[1] = Task.Run(() =>
-            {
-                lock (result)
-                {
-                    result.AddRange(Directory.GetFiles(srcPath, "*.jpg", SearchOption.AllDirectories));
-                }
+            Parallel.ForEach(imageType, imgType => {
+                var temp = Directory.GetFiles(srcPath, imgType, SearchOption.AllDirectories);
+                Parallel.ForEach(temp, item =>
+                    result.Add(item));
             });
-
-            taskArray[2] = Task.Run(() =>
-            {
-                lock (result)
-                {
-                    result.AddRange(Directory.GetFiles(srcPath, "*.jpeg", SearchOption.AllDirectories));
-                }
-            });
-
-            await Task.WhenAll(taskArray);
-            return result;
+            return result.ToArray();
 
         }
-
-
         #endregion
 
     }
