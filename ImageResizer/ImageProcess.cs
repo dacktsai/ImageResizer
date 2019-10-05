@@ -22,11 +22,7 @@ namespace ImageResizer
             else
             {
                 var allImageFiles = Directory.GetFiles(destPath, "*", SearchOption.AllDirectories);
-
-                foreach (var item in allImageFiles)
-                {
-                    File.Delete(item);
-                }
+                Parallel.ForEach(allImageFiles, file => File.Delete(file));
             }
         }
 
